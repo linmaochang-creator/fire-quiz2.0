@@ -1,0 +1,513 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#14161C">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="防火搶答">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/icon.svg">
+<title>防火安全互動搶答</title>
+<style>
+/* 手機遊戲風：深色底、四色大按鈕、單手可按、全程不需要縮放與捲動（只有公布答案頁可上下滑）。 */
+:root{
+  --bg:#14161C; --bg2:#1E222B; --bg3:#2A2F3A; --line:#383E4B; --ink:#F4F5F7; --mute:#A3AAB8;
+  --red:#D6352E; --blue:#2468C9; --yellow:#F2B01E; --green:#1E8F55; --flame:#FF7A1A;
+  --ok:#25B56A; --bad:#E5483F;
+  --font:"Noto Sans TC","PingFang TC","Microsoft JhengHei","Heiti TC",system-ui,sans-serif;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;background:var(--bg);overscroll-behavior:none}
+body{
+  font-family:var(--font);font-size:17px;line-height:1.5;color:var(--ink);
+  -webkit-text-size-adjust:100%;touch-action:manipulation;-webkit-user-select:none;user-select:none;
+  padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-right);
+}
+input{-webkit-user-select:text;user-select:text}
+button{font:inherit;color:inherit;cursor:pointer}
+h1,h2,h3,p{margin:0}
+#app{height:100%;height:100dvh;display:flex;flex-direction:column;max-width:560px;margin:0 auto;position:relative;overflow:hidden}
+
+/* 頂列 */
+.bar{flex:none;display:flex;align-items:center;gap:10px;padding:calc(10px + env(safe-area-inset-top)) 14px 10px;min-height:56px}
+.logo{font-weight:800;font-size:15px;color:var(--mute);letter-spacing:.04em;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pill{flex:none;background:var(--bg3);border-radius:99px;padding:4px 12px;font-weight:800;font-size:15px;font-variant-numeric:tabular-nums}
+.pill.fire{background:linear-gradient(90deg,#FF5A1F,#FFA11A);color:#fff;animation:pop .35s}
+.icon-btn{flex:none;width:40px;height:40px;border-radius:50%;border:0;background:var(--bg3);font-size:19px;line-height:1}
+.icon-btn:focus-visible,.go:focus-visible,.opt:focus-visible,.av:focus-visible{outline:3px solid var(--yellow);outline-offset:2px}
+.stage{flex:1;min-height:0;display:flex;flex-direction:column;padding:0 14px calc(14px + env(safe-area-inset-bottom))}
+.scroll{overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain}
+.muted{color:var(--mute)}
+
+/* 加入 */
+.hero{text-align:center;padding:6px 0 14px}
+.hero .big{font-size:54px;line-height:1.1;animation:bob 2.4s ease-in-out infinite}
+.hero h1{font-size:28px;line-height:1.25;margin-top:6px}
+.avs{display:grid;grid-template-columns:repeat(8,1fr);gap:6px;margin:10px 0 14px}
+.av{aspect-ratio:1;border-radius:12px;border:2px solid transparent;background:var(--bg2);font-size:24px;line-height:1;display:grid;place-items:center;padding:0}
+.av[aria-pressed=true]{border-color:var(--yellow);background:#3A3320;transform:scale(1.08)}
+.field{background:var(--bg2);border:2px solid var(--line);border-radius:16px;padding:10px 14px}
+.field label{display:block;font-size:13px;color:var(--mute);font-weight:700}
+.field input{width:100%;background:transparent;border:0;color:var(--ink);font:inherit;font-size:24px;font-weight:700;padding:2px 0;outline:0}
+.field:focus-within{border-color:var(--yellow)}
+.err{color:#FF8A80;font-weight:700;min-height:1.6em;margin-top:6px}
+.go{width:100%;min-height:60px;border:0;border-radius:16px;background:linear-gradient(180deg,#FF6A2B,#D6352E);color:#fff;font-weight:800;font-size:22px;box-shadow:0 5px 0 #8E1F1A;margin-top:4px}
+.go:active{transform:translateY(4px);box-shadow:0 1px 0 #8E1F1A}
+.go:disabled{opacity:.55}
+
+/* 等待 */
+.center{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:6px}
+.me-av{width:128px;height:128px;border-radius:50%;background:var(--bg2);border:4px solid var(--yellow);display:grid;place-items:center;font-size:72px;line-height:1;animation:bob 2.4s ease-in-out infinite}
+.me-name{font-size:30px;font-weight:800;margin-top:12px;overflow-wrap:anywhere}
+.dots span{display:inline-block;width:10px;height:10px;border-radius:50%;background:var(--flame);margin:0 4px;animation:blink 1.2s infinite}
+.dots span:nth-child(2){animation-delay:.2s}.dots span:nth-child(3){animation-delay:.4s}
+
+/* 題目 */
+.qhead{flex:none;display:flex;align-items:center;gap:12px;margin-bottom:10px}
+.ring{position:relative;width:64px;height:64px;flex:none}
+.ring svg{width:64px;height:64px;transform:rotate(-90deg)}
+.ring circle{fill:none;stroke-width:7}
+.ring .tr{stroke:var(--bg3)}
+.ring .fg{stroke:var(--yellow);stroke-linecap:round;stroke-dasharray:163.4;transition:stroke-dashoffset .25s linear,stroke .2s}
+.ring.low .fg{stroke:var(--bad)}
+.ring.low{animation:throb .5s infinite alternate}
+.ring b{position:absolute;inset:0;display:grid;place-items:center;font-size:22px;font-weight:900;font-variant-numeric:tabular-nums}
+.qcard{flex:1;background:var(--bg2);border:2px solid var(--line);border-radius:16px;padding:10px 14px;min-width:0;max-height:140px;overflow:auto}
+.qcard small{display:block;color:var(--flame);font-weight:800;font-size:13px}
+.qcard h2{font-size:19px;line-height:1.4;font-weight:800}
+.opts{flex:1;min-height:0;display:flex;flex-direction:column;gap:10px;margin-top:2px}
+.opt{flex:1;min-height:64px;border:0;border-radius:16px;display:flex;align-items:center;gap:12px;padding:8px 14px;text-align:left;font-size:19px;font-weight:700;line-height:1.35;color:#fff;box-shadow:0 5px 0 rgba(0,0,0,.35);animation:slide .3s both}
+.opt:nth-child(2){animation-delay:.05s}.opt:nth-child(3){animation-delay:.1s}.opt:nth-child(4){animation-delay:.15s}
+.opt .sh{flex:none;width:40px;height:40px;border-radius:10px;background:rgba(0,0,0,.22);display:grid;place-items:center;font-size:22px}
+.opt .t{flex:1;min-width:0;overflow-wrap:anywhere}
+.opt:not(:disabled):active{transform:translateY(4px);box-shadow:0 1px 0 rgba(0,0,0,.35)}
+.c0{background:var(--red)}.c1{background:var(--blue)}.c2{background:var(--yellow);color:#241A00}.c3{background:var(--green)}
+.c2 .sh{background:rgba(0,0,0,.14)}
+.opt:disabled{cursor:default}
+.opt.dim{opacity:.35;filter:saturate(.5);box-shadow:none}
+.opt.picked{outline:4px solid #fff;outline-offset:-2px;animation:pop .3s}
+.lockmsg{flex:none;text-align:center;font-weight:800;min-height:30px;padding-top:10px;color:var(--mute)}
+.lockmsg.ok{color:var(--yellow)}
+
+/* 公布答案 */
+.res{border-radius:20px;padding:18px 16px;text-align:center;animation:pop .4s}
+.res.ok{background:linear-gradient(180deg,#25B56A,#16854B)}
+.res.bad{background:linear-gradient(180deg,#E5483F,#A92A22)}
+.res.none{background:var(--bg3)}
+.res .mark{font-size:52px;line-height:1}
+.res h2{font-size:30px;font-weight:900;margin-top:2px}
+.res .pts{font-size:44px;font-weight:900;font-variant-numeric:tabular-nums;line-height:1.15}
+.res .sub{font-size:15px;opacity:.95;font-weight:700}
+.tiles{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}
+.tile{background:var(--bg2);border:2px solid var(--line);border-radius:16px;padding:10px 14px}
+.tile span{display:block;color:var(--mute);font-size:13px;font-weight:700}
+.tile b{font-size:28px;font-weight:900;font-variant-numeric:tabular-nums;line-height:1.2}
+.delta{font-size:16px;font-weight:800;margin-left:6px}
+.delta.up{color:var(--ok)}.delta.down{color:var(--bad)}.delta.same{color:var(--mute)}
+.ansline{margin-top:12px;background:var(--bg2);border-left:6px solid var(--ok);border-radius:0 14px 14px 0;padding:10px 14px;font-weight:800}
+.ansline small{display:block;color:var(--mute);font-size:13px}
+.exp{margin-top:10px;background:var(--bg2);border-left:6px solid var(--yellow);border-radius:0 14px 14px 0;padding:10px 14px}
+.exp b{display:block;color:var(--yellow);margin-bottom:2px}
+h3.sec{font-size:15px;color:var(--mute);margin:16px 0 8px;font-weight:800}
+.board{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+.board li{display:grid;grid-template-columns:30px 36px 1fr auto;gap:8px;align-items:center;padding:8px 12px;background:var(--bg2);border-radius:12px;border:2px solid transparent}
+.board li.me{border-color:var(--yellow);background:#2E2B1B}
+.board .n{font-weight:900;color:var(--mute);font-variant-numeric:tabular-nums}
+.board li:nth-child(1) .n{color:#FFC400}.board li:nth-child(2) .n{color:#C9D0DA}.board li:nth-child(3) .n{color:#D9955A}
+.board .a{font-size:22px;line-height:1}
+.board .nm{overflow-wrap:anywhere;font-weight:700}
+.board .sc{font-weight:800;font-variant-numeric:tabular-nums}
+.wait{text-align:center;color:var(--mute);font-weight:700;padding:14px 0 4px}
+
+/* 最終 */
+.fin{text-align:center;padding:10px 0 4px}
+.fin .medal{font-size:64px;line-height:1;animation:bob 2.4s ease-in-out infinite}
+.fin .rk{font-size:64px;font-weight:900;line-height:1.1;color:var(--yellow)}
+.fin .rk small{font-size:20px;color:var(--ink)}
+canvas#fx{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:20}
+
+.net{position:fixed;left:0;right:0;bottom:0;background:#000;color:#fff;text-align:center;padding:8px 16px calc(8px + env(safe-area-inset-bottom));font-size:14px;z-index:30}
+
+@keyframes pop{0%{transform:scale(.85)}60%{transform:scale(1.06)}100%{transform:scale(1)}}
+@keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
+@keyframes blink{0%,80%,100%{opacity:.25}40%{opacity:1}}
+@keyframes slide{from{opacity:0;transform:translateX(24px)}to{opacity:1;transform:none}}
+@keyframes throb{from{transform:scale(1)}to{transform:scale(1.08)}}
+@media (max-height:640px){.hero .big{font-size:40px}.hero h1{font-size:24px}.qcard h2{font-size:17px}.opt{font-size:17px;min-height:54px}.me-av{width:96px;height:96px;font-size:54px}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="bar">
+    <div class="logo" id="logo">防火安全互動搶答</div>
+    <span class="pill fire" id="streak" hidden></span>
+    <span class="pill" id="prog" hidden></span>
+    <button class="icon-btn" id="snd" type="button" aria-label="音效開關">🔊</button>
+  </div>
+  <main class="stage" id="view"></main>
+</div>
+<canvas id="fx" aria-hidden="true"></canvas>
+<div class="net" id="net" hidden>連線中斷，正在重新連線…</div>
+
+<script>
+(function () {
+  'use strict';
+  var LS = 'fireQuiz.player', LSM = 'fireQuiz.muted', LSA = 'fireQuiz.avatar';
+  var AV = ['🚒','🧯','👨‍🚒','🚨','🔥','🪣','🐶','🐱','🦊','🐼','🐯','🦁','🐸','🐵','🦉','🐲'];
+  var SHAPES = ['▲', '◆', '●', '■'];
+  var LET = ['A', 'B', 'C', 'D'];
+  var view = document.getElementById('view');
+  var net = document.getElementById('net');
+  var S = null, saved = null, es = null, endAt = 0;
+  var joinMsg = '', answerMsg = '', picking = false, pickedIdx = null;
+  var fxSeq = -1;
+  var muted = false;
+  try { muted = localStorage.getItem(LSM) === '1'; } catch (e) {}
+
+  /* ---------- 小工具 ---------- */
+  function h(tag, props) {
+    var el = document.createElement(tag);
+    if (props) Object.keys(props).forEach(function (k) {
+      var v = props[k];
+      if (k === 'class') el.className = v;
+      else if (k === 'text') el.textContent = v;
+      else if (k.slice(0, 2) === 'on') el.addEventListener(k.slice(2), v);
+      else if (v === true) el.setAttribute(k, '');
+      else if (v !== false && v != null) el.setAttribute(k, v);
+    });
+    for (var i = 2; i < arguments.length; i++) {
+      var kids = [].concat(arguments[i]);
+      for (var j = 0; j < kids.length; j++) {
+        var c = kids[j];
+        if (c == null || c === false) continue;
+        el.append(c.nodeType ? c : document.createTextNode(String(c)));
+      }
+    }
+    return el;
+  }
+  function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+  function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+  function lsDel(k) { try { localStorage.removeItem(k); } catch (e) {} }
+  function post(url, body) {
+    return fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+      .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, data: j }; }); });
+  }
+  function av(i) { return AV[i] || '🙂'; }
+
+  /* ---------- 音效（Web Audio 合成，不需要音檔）與震動 ---------- */
+  var ac = null;
+  function audio() {
+    if (!ac) { try { ac = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { ac = false; } }
+    if (ac && ac.state === 'suspended') ac.resume();
+    return ac;
+  }
+  function tone(freq, start, dur, type, vol) {
+    var c = audio(); if (!c || muted) return;
+    var o = c.createOscillator(), g = c.createGain(), t = c.currentTime + start;
+    o.type = type || 'sine'; o.frequency.setValueAtTime(freq, t);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(vol || 0.2, t + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g); g.connect(c.destination); o.start(t); o.stop(t + dur + 0.05);
+  }
+  var SFX = {
+    tap: function () { tone(660, 0, .09, 'triangle', .25); },
+    join: function () { tone(523, 0, .12, 'triangle'); tone(784, .1, .2, 'triangle'); },
+    start: function () { tone(440, 0, .1, 'square', .1); tone(660, .1, .16, 'square', .1); },
+    ok: function () { tone(659, 0, .12, 'triangle', .3); tone(784, .1, .12, 'triangle', .3); tone(1047, .2, .3, 'triangle', .3); },
+    bad: function () { tone(220, 0, .22, 'sawtooth', .16); tone(165, .18, .32, 'sawtooth', .16); },
+    tick: function () { tone(880, 0, .05, 'square', .06); },
+    win: function () { [523, 659, 784, 1047, 784, 1047, 1319].forEach(function (f, i) { tone(f, i * .12, .22, 'triangle', .3); }); }
+  };
+  function buzz(p) { try { if (!muted && navigator.vibrate) navigator.vibrate(p); } catch (e) {} }
+  var sndBtn = document.getElementById('snd');
+  function paintSnd() { sndBtn.textContent = muted ? '🔇' : '🔊'; sndBtn.setAttribute('aria-pressed', muted ? 'true' : 'false'); }
+  sndBtn.addEventListener('click', function () { muted = !muted; lsSet(LSM, muted ? '1' : '0'); paintSnd(); if (!muted) SFX.tap(); });
+  paintSnd();
+  document.addEventListener('touchstart', audio, { once: true, passive: true });
+  document.addEventListener('click', audio, { once: true });
+
+  /* ---------- 彩帶 ---------- */
+  var cv = document.getElementById('fx'), cx = cv.getContext('2d'), parts = [], raf = 0;
+  function confetti() {
+    if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    cv.width = innerWidth * devicePixelRatio; cv.height = innerHeight * devicePixelRatio;
+    var cols = ['#FF5A1F', '#FFC400', '#25B56A', '#2F7DE1', '#fff', '#E5483F'];
+    for (var i = 0; i < 140; i++) {
+      parts.push({ x: Math.random() * cv.width, y: -Math.random() * cv.height * .5, vx: (Math.random() - .5) * 5, vy: 3 + Math.random() * 5,
+        s: (6 + Math.random() * 8) * devicePixelRatio, r: Math.random() * 6, vr: (Math.random() - .5) * .3, c: cols[i % cols.length] });
+    }
+    if (!raf) raf = requestAnimationFrame(frame);
+  }
+  function frame() {
+    cx.clearRect(0, 0, cv.width, cv.height);
+    parts = parts.filter(function (p) { return p.y < cv.height + 30; });
+    parts.forEach(function (p) {
+      p.x += p.vx; p.y += p.vy; p.r += p.vr; p.vy += .04;
+      cx.save(); cx.translate(p.x, p.y); cx.rotate(p.r); cx.fillStyle = p.c; cx.fillRect(-p.s / 2, -p.s / 4, p.s, p.s / 2); cx.restore();
+    });
+    raf = parts.length ? requestAnimationFrame(frame) : 0;
+    if (!raf) cx.clearRect(0, 0, cv.width, cv.height);
+  }
+
+  /* ---------- 保持螢幕不休眠（支援的瀏覽器才有效） ---------- */
+  var wl = null;
+  function keepAwake() {
+    try { if (navigator.wakeLock) navigator.wakeLock.request('screen').then(function (l) { wl = l; }).catch(function () {}); } catch (e) {}
+  }
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState !== 'visible') return;
+    if (saved) { keepAwake(); if (!es || es.readyState === 2) connect(); }
+  });
+
+  /* ---------- 加入 ---------- */
+  function setBar(opts) {
+    document.getElementById('logo').textContent = (S && S.title) || '防火安全互動搶答';
+    var p = document.getElementById('prog'), st = document.getElementById('streak');
+    p.hidden = !opts || !opts.prog; if (opts && opts.prog) p.textContent = opts.prog;
+    var n = opts && opts.streak;
+    st.hidden = !(n >= 2); if (n >= 2) st.textContent = '🔥 連對 ' + n;
+  }
+
+  function showJoin(prefill) {
+    if (es) { es.close(); es = null; }
+    S = null; setBar(null);
+    var pick = Number(lsGet(LSA));
+    if (!(pick >= 0 && pick < AV.length)) pick = Math.floor(Math.random() * AV.length);
+    var input = h('input', { type: 'text', id: 'nick', maxlength: '10', autocomplete: 'off', autocapitalize: 'off', placeholder: '輸入暱稱' });
+    input.value = prefill || '';
+    var big = h('div', { class: 'big', text: av(pick) });
+    var grid = h('div', { class: 'avs', role: 'group', 'aria-label': '選擇頭像' });
+    function paintAv() {
+      [].forEach.call(grid.children, function (b, i) { b.setAttribute('aria-pressed', i === pick ? 'true' : 'false'); });
+      big.textContent = av(pick);
+    }
+    AV.forEach(function (a, i) {
+      grid.append(h('button', { class: 'av', type: 'button', text: a, 'aria-label': '頭像 ' + (i + 1), onclick: function () { pick = i; paintAv(); SFX.tap(); } }));
+    });
+    var err = h('p', { class: 'err', role: 'alert', text: joinMsg });
+    var btn = h('button', { class: 'go', type: 'submit', text: '加入遊戲' });
+    var form = h('form', { class: 'scroll', style: 'flex:1', onsubmit: function (e) {
+      e.preventDefault();
+      var name = input.value.trim();
+      if (!name) { err.textContent = '先取個暱稱吧'; input.focus(); return; }
+      audio(); btn.disabled = true; err.textContent = '';
+      post('/api/join', { name: name, avatar: pick }).then(function (r) {
+        if (!r.ok) { err.textContent = r.data.error || '加入失敗，請再試一次'; btn.disabled = false; return; }
+        saved = { pid: r.data.pid, token: r.data.token, name: r.data.name, avatar: pick };
+        lsSet(LS, JSON.stringify(saved)); lsSet(LSA, String(pick));
+        joinMsg = ''; SFX.join(); buzz(40); keepAwake(); connect();
+      }).catch(function () { err.textContent = '連不上主機，請確認手機已連上現場 Wi-Fi'; btn.disabled = false; });
+    } },
+      h('div', { class: 'hero' }, big, h('h1', { text: '消防安全大挑戰' }), h('p', { class: 'muted', text: '選頭像、取暱稱，不用填真實姓名' })),
+      grid,
+      h('div', { class: 'field' }, h('label', { for: 'nick', text: '你的暱稱（最多 10 字）' }), input),
+      err, btn);
+    view.replaceChildren(form);
+    paintAv();
+  }
+
+  /* ---------- 連線 ---------- */
+  function connect() {
+    if (es) es.close();
+    es = new EventSource('/api/events?pid=' + encodeURIComponent(saved.pid) + '&token=' + encodeURIComponent(saved.token));
+    es.onopen = function () { net.hidden = true; };
+    es.onerror = function () { net.hidden = false; };
+    es.onmessage = function (ev) {
+      var d;
+      try { d = JSON.parse(ev.data); } catch (e) { return; }
+      net.hidden = true;
+      if (d.kicked) {
+        var name = saved && saved.name;
+        saved = null; lsDel(LS);
+        joinMsg = '遊戲已重設或你已被移出，請重新加入。';
+        showJoin(name);
+        return;
+      }
+      var newQ = !S || S.seq !== d.seq;
+      var same = !newQ && S.phase === 'question' && d.phase === 'question';
+      S = d;
+      if (newQ) { answerMsg = ''; picking = false; pickedIdx = null; }
+      if (d.phase === 'question') endAt = Date.now() + d.remainingMs;
+      if (same && document.getElementById('ringnum')) { tick(); return; } // 作答中不重畫，避免按鈕被換掉
+      render();
+    };
+  }
+
+  /* ---------- 畫面 ---------- */
+  function render() {
+    if (!S) return;
+    var me = S.me;
+    if (S.phase === 'lobby') return renderLobby();
+    if (S.phase === 'question') return renderQuestion();
+    if (S.phase === 'reveal') return renderReveal();
+    if (S.phase === 'final') return renderFinal();
+    void me;
+  }
+
+  function renderLobby() {
+    setBar(null);
+    view.replaceChildren(h('div', { class: 'center' },
+      h('div', { class: 'me-av', text: av(S.me.avatar) }),
+      h('div', { class: 'me-name', text: S.me.name }),
+      h('p', { class: 'muted', style: 'margin-top:6px', text: '成功加入！請看大螢幕' }),
+      h('div', { style: 'height:16px' }),
+      h('div', { class: 'dots', 'aria-hidden': 'true' }, h('span'), h('span'), h('span')),
+      h('p', { class: 'muted', style: 'margin-top:14px', text: '等主持人開始，目前 ' + S.playerCount + ' 人' })));
+  }
+
+  function renderQuestion() {
+    var q = S.question, me = S.me;
+    setBar({ prog: (S.qIndex + 1) + ' / ' + S.total, streak: me.streak });
+    if (fxSeq !== S.seq) { fxSeq = S.seq; SFX.start(); }
+    var locked = me.choice != null || pickedIdx != null;
+    var timeUp = Date.now() >= endAt;
+    var opts = q.options.map(function (t, i) {
+      var cls = 'opt c' + i + (locked ? (((me.choice != null ? me.choice : pickedIdx) === i) ? ' picked' : ' dim') : '');
+      return h('button', { class: cls, type: 'button', disabled: locked || timeUp || picking, onclick: function () { choose(i); } },
+        h('span', { class: 'sh', 'aria-hidden': 'true', text: SHAPES[i] }),
+        h('span', { class: 't' }, h('span', { class: 'sr', style: 'display:none', text: LET[i] + '. ' }), t));
+    });
+    var svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); // SVG 必須用 NS 版本建立，否則不會顯示
+    svg.setAttribute('viewBox', '0 0 64 64'); svg.setAttribute('aria-hidden', 'true');
+    svg.append(svgCircle('tr'), svgCircle('fg'));
+    var ring = h('div', { class: 'ring', id: 'ring', role: 'timer', 'aria-label': '剩餘時間' }, svg, h('b', { id: 'ringnum', text: '' }));
+    view.replaceChildren(
+      h('div', { class: 'qhead' }, ring, h('div', { class: 'qcard' }, h('small', { text: q.topic || '防火安全' }), h('h2', { text: q.text }))),
+      h('div', { class: 'opts' }, opts),
+      h('p', { class: 'lockmsg', id: 'lockmsg', 'aria-live': 'polite', text: '' }));
+    tick();
+  }
+  function svgCircle(cls) {
+    var c = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    c.setAttribute('class', cls); c.setAttribute('cx', '32'); c.setAttribute('cy', '32'); c.setAttribute('r', '26');
+    if (cls === 'fg') c.setAttribute('id', 'ringfg');
+    return c;
+  }
+
+  var lastSec = -1;
+  function tick() {
+    if (!S || S.phase !== 'question') return;
+    var num = document.getElementById('ringnum');
+    if (!num) return;
+    var left = Math.max(0, endAt - Date.now());
+    var secs = Math.ceil(left / 1000);
+    num.textContent = left > 0 ? secs : '0';
+    var fg = document.getElementById('ringfg');
+    var frac = Math.max(0, Math.min(1, left / (S.timeLimit * 1000)));
+    fg.style.strokeDashoffset = String(163.4 * (1 - frac));
+    document.getElementById('ring').classList.toggle('low', left > 0 && left < 5000);
+    if (left > 0 && left < 5000 && secs !== lastSec && S.me.choice == null && pickedIdx == null) SFX.tick();
+    lastSec = secs;
+    var locked = S.me.choice != null || pickedIdx != null;
+    var lm = document.getElementById('lockmsg');
+    var msg = answerMsg || (locked ? '🔒 答案已鎖定，等主持人公布' : (left <= 0 ? '時間到！等主持人公布答案' : ''));
+    if (lm.textContent !== msg) { lm.textContent = msg; lm.className = 'lockmsg' + (locked && !answerMsg ? ' ok' : ''); }
+    if (left <= 0 && !locked) [].forEach.call(document.querySelectorAll('.opt'), function (b) { b.disabled = true; });
+  }
+  setInterval(tick, 200);
+
+  function choose(i) {
+    if (picking || !S || S.phase !== 'question' || S.me.choice != null || pickedIdx != null) return;
+    picking = true; pickedIdx = i; answerMsg = '';
+    SFX.tap(); buzz(30);
+    renderQuestion(); // 立刻鎖定並標示選擇，讓手感即時
+    post('/api/answer', { pid: saved.pid, token: saved.token, q: S.qIndex, choice: i }).then(function (r) {
+      picking = false;
+      if (r.ok) { if (S) S.me.choice = i; }
+      else { pickedIdx = null; answerMsg = r.data.error || '送出失敗'; }
+      if (S && S.phase === 'question') renderQuestion();
+    }).catch(function () {
+      picking = false; pickedIdx = null; answerMsg = '送出失敗，請確認網路後再按一次';
+      if (S && S.phase === 'question') renderQuestion();
+    });
+  }
+
+  function countUp(el, to, ms) {
+    var t0 = performance.now();
+    (function step(t) {
+      var k = Math.min(1, (t - t0) / ms);
+      el.textContent = '+' + Math.round(to * (1 - Math.pow(1 - k, 3)));
+      if (k < 1) requestAnimationFrame(step);
+    })(t0);
+  }
+
+  function board(list, meName) {
+    return h('ol', { class: 'board' }, list.map(function (r) {
+      return h('li', { class: r.name === meName ? 'me' : '' },
+        h('span', { class: 'n', text: r.rank }), h('span', { class: 'a', 'aria-hidden': 'true', text: av(r.avatar) }),
+        h('span', { class: 'nm', text: r.name }), h('span', { class: 'sc', text: r.score }));
+    }));
+  }
+
+  function renderReveal() {
+    var q = S.question, r = S.reveal, me = S.me;
+    setBar({ prog: (S.qIndex + 1) + ' / ' + S.total, streak: me.streak });
+    var hero, pts = null;
+    if (me.isCorrect) {
+      pts = h('div', { class: 'pts', text: '+0' });
+      var parts = [];
+      if (me.bonus > 0) parts.push('連對加分 +' + me.bonus);
+      hero = h('div', { class: 'res ok' }, h('div', { class: 'mark', text: '✅' }), h('h2', { text: '答對了！' }), pts,
+        h('div', { class: 'sub', text: parts.length ? '🔥 ' + parts.join('　') : '答得越快，分數越高' }));
+    } else if (me.choice == null) {
+      hero = h('div', { class: 'res none' }, h('div', { class: 'mark', text: '⏰' }), h('h2', { text: '這題沒有作答' }), h('div', { class: 'sub', text: '下一題加油！' }));
+    } else {
+      hero = h('div', { class: 'res bad' }, h('div', { class: 'mark', text: '❌' }), h('h2', { text: '答錯了' }), h('div', { class: 'sub', text: '看看下面的解析，下一題再拿回來' }));
+    }
+    var d = me.rankDelta || 0;
+    var delta = d > 0 ? h('span', { class: 'delta up', text: '▲' + d }) : d < 0 ? h('span', { class: 'delta down', text: '▼' + (-d) }) : h('span', { class: 'delta same', text: '—' });
+    var sc = h('div', { class: 'scroll', style: 'flex:1' },
+      hero,
+      h('div', { class: 'tiles' },
+        h('div', { class: 'tile' }, h('span', { text: '目前名次' }), h('b', { text: '第 ' + me.rank + ' 名' }), delta),
+        h('div', { class: 'tile' }, h('span', { text: '累計分數' }), h('b', { text: me.score }))),
+      h('div', { class: 'ansline' }, h('small', { text: '正確答案' }), SHAPES[r.answer] + ' ' + q.options[r.answer]),
+      r.explanation ? h('div', { class: 'exp' }, h('b', { text: '消防小叮嚀' }), r.explanation) : null,
+      h('h3', { class: 'sec', text: '目前前 5 名' }),
+      board(S.top, me.name),
+      h('p', { class: 'wait', text: '請看大螢幕，等主持人出下一題' }));
+    view.replaceChildren(sc);
+    if (pts) countUp(pts, me.gained, 700);
+    if (fxSeq !== S.seq) {
+      fxSeq = S.seq;
+      if (me.isCorrect) { SFX.ok(); buzz([40, 40, 80]); } else if (me.choice != null) { SFX.bad(); buzz(220); }
+    }
+  }
+
+  function renderFinal() {
+    var me = S.me;
+    setBar({ prog: '成績公布' });
+    var top3 = me.rank <= 3;
+    var medal = me.rank === 1 ? '🏆' : me.rank === 2 ? '🥈' : me.rank === 3 ? '🥉' : '🎖️';
+    view.replaceChildren(h('div', { class: 'scroll', style: 'flex:1' },
+      h('div', { class: 'fin' },
+        h('div', { class: 'medal', text: medal }),
+        h('p', { class: 'muted', text: av(me.avatar) + ' ' + me.name + ' 的最終成績' }),
+        h('div', { class: 'rk' }, '第 ' + me.rank + ' 名', h('small', { text: ' ／ ' + S.playerCount + ' 人' }))),
+      h('div', { class: 'tiles' },
+        h('div', { class: 'tile' }, h('span', { text: '總分' }), h('b', { text: me.score })),
+        h('div', { class: 'tile' }, h('span', { text: '答對題數' }), h('b', { text: me.correct + ' / ' + S.total })),
+        h('div', { class: 'tile', style: 'grid-column:1/3' }, h('span', { text: '最長連對' }), h('b', { text: '🔥 ' + (me.best || 0) + ' 題' }))),
+      h('h3', { class: 'sec', text: '前 10 名' }),
+      board(S.top, me.name),
+      h('p', { class: 'wait', text: '謝謝參加！平時多留意用火用電，遇到火災立即逃生並撥打 119。' })));
+    if (fxSeq !== S.seq) {
+      fxSeq = S.seq;
+      if (top3) { SFX.win(); buzz([60, 60, 60, 60, 160]); confetti(); } else SFX.ok();
+    }
+  }
+
+  /* ---------- 啟動 ---------- */
+  try { saved = JSON.parse(lsGet(LS) || 'null'); } catch (e) { saved = null; }
+  if (saved && saved.pid && saved.token) { keepAwake(); connect(); }
+  else showJoin('');
+})();
+</script>
+</body>
+</html>
